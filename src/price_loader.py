@@ -85,7 +85,7 @@ def compute_monthly_returns():
         print("❗ No price data available. Cannot compute returns.")
         return pd.DataFrame()
 
-    df_m = df.resample("M").last()
+    df_m = df.resample("ME").last()
     ret = df_m.pct_change().dropna(how="all")
 
     df_long = ret.reset_index().melt(
