@@ -3,10 +3,19 @@ import yfinance as yf
 import time
 import os
 
+#  This file was used to convert the ESG scores Excel file obtained from CEDIF into a processed CSV file. It is not useful anymore and is not in the pipeline.
 
-input_xlsx = r"C:\Users\ish4q\Desktop\ESG Prediction Project\data\raw\Ishac.xlsx"
-tidy_output = r"C:\Users\ish4q\Desktop\ESG Prediction Project\data\processed\Ishac_tidy.csv"
-final_output = r"C:\Users\ish4q\Desktop\ESG Prediction Project\data\processed\Ishac_tidy_sector_industry.csv"
+
+
+
+
+
+
+
+
+input_xlsx = r"C:\ESG Prediction Project\data\raw\sp500_esg_risk_ratings.xlsx"
+tidy_output = r"C:\ESG Prediction Project\data\processed\Ishac_tidy.csv"
+final_output = r"C:\ESG Prediction Project\data\processed\sp500_esg_risk_ratings.csv"
 
 df = pd.read_excel(input_xlsx, engine="openpyxl")
 

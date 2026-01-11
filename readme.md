@@ -1,3 +1,6 @@
+## 📁 Project Structure
+
+```text
 ESG Prediction Project/
 │
 ├── main.py                          # Main monthly pipeline
@@ -30,14 +33,13 @@ ESG Prediction Project/
     ├── EDA.ipynb                    # Exploratory analysis
     └── Modeling.ipynb               # Feature importance, experiments
 
-
-| Model             | RMSE ↓     | MAE ↓      | R² ↓       |
-| ----------------- | ---------- | ---------- | ---------- |
-| Random Forest     |   0.0913   |   0.0669   |   0.0875   |
-| Gradient Boosting |   0.0933   |   0.0695   |   0.0454   |
-| Lasso             |   0.0951   |   0.0713   |   0.0095   |
-| Ridge             |   0.0955   |   0.0718   |   0.0006   |
-| Linear Regression |   0.0955   |   0.0718   |   0.0003   |
+| Model             | RMSE ↓ | MAE ↓  | R² ↓   |
+| ----------------- | ------ | ------ | ------ |
+| Random Forest     | 0.0913 | 0.0669 | 0.0875 |
+| Gradient Boosting | 0.0933 | 0.0695 | 0.0454 |
+| Lasso             | 0.0951 | 0.0713 | 0.0095 |
+| Ridge             | 0.0955 | 0.0718 | 0.0006 |
+| Linear Regression | 0.0955 | 0.0718 | 0.0003 |
 
 
 requirements : 

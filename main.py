@@ -1,37 +1,27 @@
-from src.price_loader import download_stock_prices, compute_monthly_returns
-from src.data_loader import load_data
-from src.models import (
-    train_all_models,
-    compare_with_without_esg,
-    compare_esg_numeric_only,
-    compare_esg_by_sector
-)
+from src.data_loader import ESGDataLoader
+from src.models import ESGModelExperiment
 
 
 def main():
-    print("\n=== 1) Download Stock Prices ===")
-    download_stock_prices()
-
-    print("\n=== 2) Compute Monthly Returns ===")
-    compute_monthly_returns()
-
-    print("\n=== 3) Load Final Dataset (ESG + Returns) ===")
-    df = load_data()
+    # Load dataset final
+    loader = ESGDataLoader(n_lags=6)
+    df = loader.load_data()
 
     print(f"\nFinal dataset size → {len(df)} rows")
     print(df.head())
 
+    # ML experiment
+    exp = ESGModelExperiment(chronological=False)
+    exp.split(df)
+
     print("\n=== 4) Train ML Models ===")
-    train_all_models(df, chronological=False)
+    exp.train_all()
 
-    print("\n=== 5) ESG Value Test (A/B - Global, CORRIGÉ) ===")
-    compare_with_without_esg(df, chronological=False)
+    print("\n=== 5) ESG Value Test ===")
+    exp.ab_global()
 
-    print("\n=== 5bis) ESG Numeric Only (Global) ===")
-    compare_esg_numeric_only(df, chronological=False)
-
-    print("\n=== 6) ESG Value Test (A/B - By Sector) ===")
-    compare_esg_by_sector(df, min_rows=500, chronological=False)
+    print("\n=== 6) ESG Value by sector ===")
+    exp.ab_by_sector(min_rows=200)
 
 
 if __name__ == "__main__":

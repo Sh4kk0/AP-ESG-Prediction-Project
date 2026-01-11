@@ -5,291 +5,219 @@ from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
 from sklearn.pipeline import Pipeline
+from sklearn.base import clone
 
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-from src.data_loader import prepare_features
+from src.data_loader import ESGDataLoader
 
 
-# ==========================================================
-# PREPROCESSING PIPELINE (pour train_all_models)
-# ==========================================================
-def build_preprocessor():
-    numeric = ["esg", "e", "s", "g",
-               "ret_lag_1", "ret_lag_2", "ret_lag_3",
-               "ret_lag_4", "ret_lag_5", "ret_lag_6"]
-    categorical = ["sector", "industry"]
-
-    return ColumnTransformer([
-        ("num", MinMaxScaler(), numeric),
-        ("cat", OneHotEncoder(handle_unknown="ignore"), categorical),
-    ])
+class ESGModelExperiment:
 
 
-# ==========================================================
-# EVALUATION
-# ==========================================================
-def evaluate_model(name, model, X_train, X_test, y_train, y_test):
-    model.fit(X_train, y_train)
-    pred = model.predict(X_test)
+    def __init__(self, test_size=0.2, random_state=42, chronological=False):
+        self.test_size = test_size
+        self.random_state = random_state
+        self.chronological = chronological
 
-    rmse = np.sqrt(mean_squared_error(y_test, pred))
-    mae = mean_absolute_error(y_test, pred)
-    r2 = r2_score(y_test, pred)
+        # columns
+        self.lags = [f"ret_lag_{i}" for i in range(1, 7)]
+        self.esg = ["esg", "e", "s", "g"]
+        self.cats = ["sector", "industry"]
 
-    print(f"\n--- {name} ---")
-    print(f"RMSE: {rmse:.6f} | MAE: {mae:.6f} | R²: {r2:.4f}")
+        # models
+        self.models = [
+            ("Linear Regression", LinearRegression()),
+            ("Ridge", Ridge()),
+            ("Lasso", Lasso(alpha=1e-4)),
+            ("Random Forest", RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)),
+            ("Gradient Boosting", GradientBoostingRegressor(random_state=42)),
+        ]
 
-    return {"name": name, "rmse": rmse, "mae": mae, "r2": r2}
-
-
-# ==========================================================
-# TRAINING ON ALL MODELS (pipeline complet)
-# ==========================================================
-def train_all_models(df, chronological=False):
-    X, y = prepare_features(df)
-
-    if chronological:
-        df = df.sort_values("date")
-        split = int(len(df) * 0.8)
-        X_train, X_test = X[:split], X[split:]
-        y_train, y_test = y[:split], y[split:]
-    else:
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
-
-    preprocessor = build_preprocessor()
-
-    models = [
-        ("Linear Regression", LinearRegression()),
-        ("Ridge", Ridge()),
-        ("Lasso", Lasso(alpha=1e-4)),
-        ("Random Forest", RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=-1)),
-        ("Gradient Boosting", GradientBoostingRegressor(random_state=42)),
-    ]
-
-    results = []
-    for name, m in models:
-        pipe = Pipeline([("prep", preprocessor), ("model", m)])
-        results.append(evaluate_model(name, pipe, X_train, X_test, y_train, y_test))
-
-    print("\n=== Model Ranking ===")
-    for r in sorted(results, key=lambda x: x["rmse"]):
-        print(f"{r['name']} → RMSE={r['rmse']:.4f} | R²={r['r2']:.4f}")
-
-    return results
+        self._ready = False
+        self._df_ref = None  
 
 
-# ==========================================================
-# UTIL: split UNIQUE (indices) pour A/B valid
-# ==========================================================
-def _make_train_test_indices(df, test_size=0.2, chronological=False, random_state=42):
-    if chronological and "date" in df.columns:
-        df_sorted = df.sort_values("date")
-        split = int(len(df_sorted) * (1 - test_size))
-        train_idx = df_sorted.index[:split]
-        test_idx = df_sorted.index[split:]
-    else:
-        train_idx, test_idx = train_test_split(
-            df.index, test_size=test_size, random_state=random_state
-        )
-    return train_idx, test_idx
 
+    def split(self, df: pd.DataFrame):
+        """
+        Split une seule fois et conserve X_train/X_test/y_train/y_test.
+        """
+        self._df_ref = df
 
-# ==========================================================
-# ESG vs NO-ESG A/B COMPARISON (GLOBAL) - CORRIGÉ
-# (même split => Δ comparable)
-# ==========================================================
-def compare_with_without_esg(df, chronological=False):
-    """
-    Baseline: lags uniquement
-    Full: lags + ESG(num) + sector/industry(cat)
-    IMPORTANT: même split baseline/full (corrigé)
-    """
+        X, y = ESGDataLoader.prepare_features(df)
 
-    lag_cols = ["ret_lag_1", "ret_lag_2", "ret_lag_3", "ret_lag_4", "ret_lag_5", "ret_lag_6"]
-    esg_num = ["esg", "e", "s", "g"]
-    cat_cols = ["sector", "industry"]
+        if self.chronological and "date" in df.columns:
+            df_sorted = df.sort_values("date")
+            cut = int(len(df_sorted) * (1 - self.test_size))
+            idx_train = df_sorted.index[:cut]
+            idx_test = df_sorted.index[cut:]
+        else:
+            idx_train, idx_test = train_test_split(
+                df.index, test_size=self.test_size, random_state=self.random_state
+            )
 
-    needed = lag_cols + esg_num + cat_cols + ["return"]
-    df2 = df.dropna(subset=needed).copy()
+        self.X_train = X.loc[idx_train]
+        self.X_test = X.loc[idx_test]
+        self.y_train = y.loc[idx_train]
+        self.y_test = y.loc[idx_test]
 
-    train_idx, test_idx = _make_train_test_indices(df2, test_size=0.2, chronological=chronological)
+        self._ready = True
 
-    y_train = df2.loc[train_idx, "return"]
-    y_test = df2.loc[test_idx, "return"]
-
-    Xb_train = df2.loc[train_idx, lag_cols]
-    Xb_test = df2.loc[test_idx, lag_cols]
-
-    Xf_train = df2.loc[train_idx, lag_cols + esg_num + cat_cols]
-    Xf_test = df2.loc[test_idx, lag_cols + esg_num + cat_cols]
-
-    models = {
-        "Ridge": Ridge(),
-        "Lasso": Lasso(alpha=1e-4),
-        "RandomForest": RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=-1),
-        "GradientBoosting": GradientBoostingRegressor(random_state=42),
-    }
-
-    rows = []
-
-    for name, model in models.items():
-        base = Pipeline([("scale", MinMaxScaler()), ("model", model)])
-
-        full = Pipeline([
-            ("prep", ColumnTransformer([
-                ("num", MinMaxScaler(), lag_cols + esg_num),
-                ("cat", OneHotEncoder(handle_unknown="ignore"), cat_cols),
-            ])),
-            ("model", model)
+    # --------------------------------------------------
+    # Helpers
+    # --------------------------------------------------
+    def _full_prep(self):
+        return ColumnTransformer([
+            ("num", MinMaxScaler(), self.lags + self.esg),
+            ("cat", OneHotEncoder(handle_unknown="ignore"), self.cats),
         ])
 
-        r2_base = r2_score(y_test, base.fit(Xb_train, y_train).predict(Xb_test))
-        r2_full = r2_score(y_test, full.fit(Xf_train, y_train).predict(Xf_test))
+    def _fit_pred(self, pipe: Pipeline, X_train, X_test):
+        pipe.fit(X_train, self.y_train)
+        return pipe.predict(X_test)
 
-        rows.append([name, r2_base, r2_full, r2_full - r2_base])
+    @staticmethod
+    def _metrics(y_true, y_pred):
+        rmse = float(np.sqrt(mean_squared_error(y_true, y_pred)))
+        mae = float(mean_absolute_error(y_true, y_pred))
+        r2 = float(r2_score(y_true, y_pred))
+        return rmse, mae, r2
 
-    df_out = pd.DataFrame(rows, columns=["Model", "R² Baseline", "R² With ESG(+sector/industry)", "Δ Gain"])
+    # --------------------------------------------------
+    # 1) Train all models 
+    # --------------------------------------------------
+    def train_all(self):
+        assert self._ready, "Call split(df) first"
 
-    print("\n========== ESG CONTRIBUTION ANALYSIS (GLOBAL, CORRIGÉ) ==========")
-    print(df_out.to_string(index=False))
-    print("---------------------------------------------------------------")
-    print("Δ > 0 → ajout ESG(+sector/industry) améliore la prédiction")
-    print("Δ < 0 → ajout apporte peu / dégrade out-of-sample")
+        prep = self._full_prep()
+        results = []
 
-    return df_out
-
-
-# ==========================================================
-# ESG NUMERIC ONLY (GLOBAL)
-# pour séparer effet ESG (scores) vs effet secteur/industrie
-# ==========================================================
-def compare_esg_numeric_only(df, chronological=False):
-    """
-    Baseline: lags uniquement
-    Full: lags + ESG (esg,e,s,g) uniquement
-    => mesure plus “pure” de l’effet ESG numérique
-    """
-
-    lag_cols = ["ret_lag_1", "ret_lag_2", "ret_lag_3", "ret_lag_4", "ret_lag_5", "ret_lag_6"]
-    esg_num = ["esg", "e", "s", "g"]
-
-    needed = lag_cols + esg_num + ["return"]
-    df2 = df.dropna(subset=needed).copy()
-
-    train_idx, test_idx = _make_train_test_indices(df2, test_size=0.2, chronological=chronological)
-
-    y_train = df2.loc[train_idx, "return"]
-    y_test = df2.loc[test_idx, "return"]
-
-    Xb_train = df2.loc[train_idx, lag_cols]
-    Xb_test = df2.loc[test_idx, lag_cols]
-
-    Xf_train = df2.loc[train_idx, lag_cols + esg_num]
-    Xf_test = df2.loc[test_idx, lag_cols + esg_num]
-
-    models = {
-        "Ridge": Ridge(),
-        "Lasso": Lasso(alpha=1e-4),
-        "RandomForest": RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=-1),
-        "GradientBoosting": GradientBoostingRegressor(random_state=42),
-    }
-
-    rows = []
-    for name, model in models.items():
-        base = Pipeline([("scale", MinMaxScaler()), ("model", model)])
-        full = Pipeline([("scale", MinMaxScaler()), ("model", model)])
-
-        r2_base = r2_score(y_test, base.fit(Xb_train, y_train).predict(Xb_test))
-        r2_full = r2_score(y_test, full.fit(Xf_train, y_train).predict(Xf_test))
-
-        rows.append([name, r2_base, r2_full, r2_full - r2_base])
-
-    df_out = pd.DataFrame(rows, columns=["Model", "R² Baseline", "R² With ESG(numeric)", "Δ Gain"])
-
-    print("\n========== ESG NUMERIC ONLY (GLOBAL) ==========")
-    print(df_out.to_string(index=False))
-    print("------------------------------------------------")
-    print("Δ > 0 → les scores ESG (numériques) aident")
-    print("Δ < 0 → peu/pas d’info ESG numérique")
-
-    return df_out
-
-
-# ==========================================================
-# ESG vs NO-ESG A/B COMPARISON (BY SECTOR)
-# ==========================================================
-def compare_esg_by_sector(df, min_rows=500, chronological=False):
-    """
-    Compare baseline vs with-ESG *par secteur*.
-    Baseline: lags uniquement
-    Full: lags + ESG(num) + industry(cat)
-    (sector est constant dans un sous-ensemble, donc inutile en feature)
-    """
-
-    lag_cols = ["ret_lag_1", "ret_lag_2", "ret_lag_3", "ret_lag_4", "ret_lag_5", "ret_lag_6"]
-    esg_num = ["esg", "e", "s", "g"]
-    cat_cols = ["industry"]
-
-    models = {
-        "Ridge": Ridge(),
-        "Lasso": Lasso(alpha=1e-4),
-        "RandomForest": RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=-1),
-        "GradientBoosting": GradientBoostingRegressor(random_state=42),
-    }
-
-    rows = []
-
-    for sector, sub in df.groupby("sector"):
-        needed = lag_cols + esg_num + cat_cols + ["return"]
-        sub = sub.dropna(subset=needed).copy()
-
-        if len(sub) < min_rows:
-            continue
-
-        train_idx, test_idx = _make_train_test_indices(
-            sub, test_size=0.2, chronological=chronological, random_state=42
-        )
-
-        y_train = sub.loc[train_idx, "return"]
-        y_test = sub.loc[test_idx, "return"]
-
-        Xb_train = sub.loc[train_idx, lag_cols]
-        Xb_test = sub.loc[test_idx, lag_cols]
-
-        Xf_train = sub.loc[train_idx, lag_cols + esg_num + cat_cols]
-        Xf_test = sub.loc[test_idx, lag_cols + esg_num + cat_cols]
-
-        for name, model in models.items():
-            base = Pipeline([("scale", MinMaxScaler()), ("model", model)])
-
-            full = Pipeline([
-                ("prep", ColumnTransformer([
-                    ("num", MinMaxScaler(), lag_cols + esg_num),
-                    ("cat", OneHotEncoder(handle_unknown="ignore"), cat_cols),
-                ])),
-                ("model", model)
+        for name, model in self.models:
+            pipe = Pipeline([
+                ("prep", prep),
+                ("model", clone(model))
             ])
 
-            r2_base = r2_score(y_test, base.fit(Xb_train, y_train).predict(Xb_test))
-            r2_full = r2_score(y_test, full.fit(Xf_train, y_train).predict(Xf_test))
+            pred = self._fit_pred(pipe, self.X_train, self.X_test)
+            rmse, mae, r2 = self._metrics(self.y_test, pred)
 
-            rows.append([sector, name, len(sub), r2_base, r2_full, r2_full - r2_base])
+            print(f"\n--- {name} ---")
+            print(f"RMSE: {rmse:.6f} | MAE: {mae:.6f} | R²: {r2:.4f}")
 
-    out = pd.DataFrame(rows, columns=[
-        "Sector", "Model", "N", "R² Baseline", "R² With ESG", "Δ ESG Gain"
-    ])
+            results.append({"name": name, "rmse": rmse, "mae": mae, "r2": r2})
 
-    if not out.empty:
-        print("\n========== ESG GAIN PAR SECTEUR ==========")
-        pivot = out.pivot_table(index="Sector", columns="Model", values="Δ ESG Gain", aggfunc="mean")
+        print("\n=== Model Ranking ===")
+        for r in sorted(results, key=lambda x: x["rmse"]):
+            print(f"{r['name']} → RMSE={r['rmse']:.4f} | R²={r['r2']:.4f}")
+
+        return results
+
+    # --------------------------------------------------
+    # 2) A/B global: baseline vs ESG enhanced
+    # --------------------------------------------------
+    def ab_global(self):
+        """
+        Baseline: lags only
+        Full: lags + ESG + sector/industry
+        """
+        assert self._ready, "Call split(df) first"
+
+        Xb_train = self.X_train[self.lags]
+        Xb_test = self.X_test[self.lags]
+
+        Xf_train = self.X_train[self.lags + self.esg + self.cats]
+        Xf_test = self.X_test[self.lags + self.esg + self.cats]
+
+        rows = []
+
+        for name, model in self.models:
+            base = Pipeline([
+                ("scale", MinMaxScaler()),
+                ("model", clone(model))
+            ])
+
+            full = Pipeline([
+                ("prep", self._full_prep()),
+                ("model", clone(model))
+            ])
+
+            pred_base = self._fit_pred(base, Xb_train, Xb_test)
+            pred_full = self._fit_pred(full, Xf_train, Xf_test)
+
+            r2_base = float(r2_score(self.y_test, pred_base))
+            r2_full = float(r2_score(self.y_test, pred_full))
+
+            rows.append([name, r2_base, r2_full, r2_full - r2_base])
+
+        out = pd.DataFrame(rows, columns=["Model", "R² Baseline", "R² Full", "Δ Gain"])
+
+        print("\n========== ESG CONTRIBUTION (GLOBAL) ==========")
+        print(out.to_string(index=False))
+
+        return out
+
+    # --------------------------------------------------
+    # 3) A/B by sector 
+    # --------------------------------------------------
+    def ab_by_sector(self, min_rows=200):
+
+
+        assert self._ready, "Call split(df) first"
+        assert self._df_ref is not None, "Internal df reference missing"
+        assert "sector" in self._df_ref.columns, "Column 'sector' missing in df"
+
+        # Info secteur sur le test global
+        df_test = self._df_ref.loc[self.X_test.index, ["sector"]].copy()
+
+        # Features baseline/full sur train/test global
+        Xb_train = self.X_train[self.lags]
+        Xb_test = self.X_test[self.lags]
+
+        Xf_train = self.X_train[self.lags + self.esg + self.cats]
+        Xf_test = self.X_test[self.lags + self.esg + self.cats]
+
+        rows = []
+
+        for model_name, model in self.models:
+            # Fit global
+            base = Pipeline([("scale", MinMaxScaler()), ("model", clone(model))])
+            full = Pipeline([("prep", self._full_prep()), ("model", clone(model))])
+
+            base.fit(Xb_train, self.y_train)
+            full.fit(Xf_train, self.y_train)
+
+            pred_base = base.predict(Xb_test)
+            pred_full = full.predict(Xf_test)
+
+            # Slice for each sector
+            tmp = df_test.copy()
+            tmp["y"] = self.y_test.values
+            tmp["pb"] = pred_base
+            tmp["pf"] = pred_full
+
+            for sector, g in tmp.groupby("sector"):
+                if len(g) < min_rows:
+                    continue
+
+                r2_b = float(r2_score(g["y"], g["pb"]))
+                r2_f = float(r2_score(g["y"], g["pf"]))
+                rows.append([sector, model_name, int(len(g)), r2_b, r2_f, r2_f - r2_b])
+
+        out = pd.DataFrame(rows, columns=[
+            "Sector", "Model", "N_test", "R² Baseline", "R² Full", "Δ Gain"
+        ])
+
+        if out.empty:
+            print("\n(No sector had enough test rows to report.)")
+            return out
+
+        print("\n========== Δ ESG GAIN PER SECTOR ==========")
+        
+        pivot = out.pivot_table(index="Sector", columns="Model", values="Δ Gain", aggfunc="mean")
         print(pivot.sort_index().to_string())
-        print("-----------------------------------------")
-        print("Δ > 0 → ESG améliore la prédiction dans ce secteur")
 
-    return out
+        return out
