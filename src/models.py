@@ -44,7 +44,7 @@ class ESGModelExperiment:
 
     def split(self, df: pd.DataFrame):
         """
-        Split une seule fois et conserve X_train/X_test/y_train/y_test.
+        Split data into train/test sets.
         """
         self._df_ref = df
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 class PriceDataLoader:
     """
-    Responsable du téléchargement des prix et du calcul des returns mensuels.
+    Dowloads stock price data from Yahoo Finance and computes monthly returns.
     """
 
     def __init__(
@@ -87,7 +87,7 @@ class PriceDataLoader:
         prices.to_csv(self.prices_path)
 
         if self.verbose:
-            print("📁 Prices saved → data/raw/stock_prices.csv")
+            print("Prices saved → data/raw/stock_prices.csv")
             print(f"Valid tickers : {len(valid)}")
             print(f"Failed tickers: {len(failed)}")
 
@@ -99,14 +99,14 @@ class PriceDataLoader:
     def compute_monthly_returns(self) -> pd.DataFrame:
         if not self.prices_path.exists():
             if self.verbose:
-                print("❗ No price data available. Cannot compute returns.")
+                print(" No price data available. Cannot compute returns.")
             return pd.DataFrame()
 
         df = pd.read_csv(self.prices_path, index_col=0, parse_dates=True)
 
         if df.empty:
             if self.verbose:
-                print("❗ Price file empty. Cannot compute returns.")
+                print(" Price file empty. Cannot compute returns.")
             return pd.DataFrame()
 
         df_m = df.resample("ME").last()
@@ -123,7 +123,7 @@ class PriceDataLoader:
         df_long.to_csv(self.returns_path, index=False)
 
         if self.verbose:
-            print("📁 Monthly returns saved → data/processed/monthly_returns.csv")
+            print("Monthly returns saved → data/processed/monthly_returns.csv")
             print(f"Rows: {len(df_long)}")
 
         return df_long
