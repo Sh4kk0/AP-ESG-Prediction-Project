@@ -5,14 +5,14 @@ ESG Prediction Project/
 │
 ├── main.py                          # Main monthly pipeline
 ├── environment.yml                  # Dependencies
-├── conv.py                          # Converts xls risk ratings into a csv dataframe
+│
 │
 │
 ├── src/
 │   ├── price_loader.py              # Price download + monthly returns
 │   ├── data_loader.py               # Merge ESG + returns + lag features
 │   ├── models.py                    # Baseline vs ESG training + evaluation
-│  
+│   └── conv.py                      # Converts xls risk ratings into a csv dataframe
 │
 ├── data/
 │   ├── raw/
