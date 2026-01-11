@@ -54,3 +54,5 @@ scikit-learn
 yfinance
 pathlib
 joblib
+
+ChatGPT and GitHub Copilot were used during the debugging process to help identify issues and improve code quality. These tools also assisted in refactoring the code to make it cleaner, better structured, and easier to maintain.

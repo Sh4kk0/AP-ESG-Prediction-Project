@@ -59,7 +59,7 @@ class ESGDataLoader:
 
         df = self.add_return_lags(df)
 
-        # Drop uniquement ce qui est nécessaire
+        # Drop only what is strictly necessary
         required = (
             ["return"]
             + [f"ret_lag_{i}" for i in range(1, self.n_lags + 1)]
@@ -71,7 +71,7 @@ class ESGDataLoader:
             self.processed_dir.mkdir(parents=True, exist_ok=True)
             df.to_csv(self.final_path, index=False)
             if verbose:
-                print("📁 Final dataset saved → data/processed/final_dataset.csv")
+                print("Final dataset saved → data/processed/final_dataset.csv")
                 print(f"Final dataset rows: {len(df)}")
 
         return df

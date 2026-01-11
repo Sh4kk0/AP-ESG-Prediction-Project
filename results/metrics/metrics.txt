@@ -1,3 +1,7 @@
+ESG rows: 2475, Returns rows: 22885
+📁 Final dataset saved → data/processed/final_dataset.csv
+Final dataset rows: 19137
+
 === 4) Train ML Models ===
 
 --- Linear Regression ---
