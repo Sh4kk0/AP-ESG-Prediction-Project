@@ -1,0 +1,47 @@
+=== 4) Train ML Models ===
+
+--- Linear Regression ---
+RMSE: 0.095551 | MAE: 0.071802 | R²: 0.0003
+
+--- Ridge ---
+RMSE: 0.095536 | MAE: 0.071787 | R²: 0.0006
+
+--- Lasso ---
+RMSE: 0.095114 | MAE: 0.071304 | R²: 0.0095
+
+--- Random Forest ---
+RMSE: 0.091364 | MAE: 0.067063 | R²: 0.0860
+
+--- Gradient Boosting ---
+RMSE: 0.093561 | MAE: 0.069548 | R²: 0.0415
+
+=== Model Ranking ===
+Random Forest → RMSE=0.0914 | R²=0.0860
+Gradient Boosting → RMSE=0.0936 | R²=0.0415
+Lasso → RMSE=0.0951 | R²=0.0095
+Ridge → RMSE=0.0955 | R²=0.0006
+Linear Regression → RMSE=0.0956 | R²=0.0003
+
+=== 5) ESG Value Test (A/B - Global) ===
+
+========== ESG CONTRIBUTION (GLOBAL) ==========
+            Model  R² Baseline  R² Full    Δ Gain
+Linear Regression     0.006632 0.000331 -0.006300
+            Ridge     0.006730 0.000645 -0.006086
+            Lasso     0.006704 0.009451  0.002748
+    Random Forest     0.064106 0.086031  0.021924
+Gradient Boosting     0.036947 0.041536  0.004589
+
+=== 6) ESG Value Test (A/B - By Sector) ===
+
+========== Δ ESG GAIN PER SECTOR ==========
+Model               Gradient Boosting     Lasso  Linear Regression  Random Forest     Ridge
+Sector                                                                                     
+Consumer Cyclical           -0.009228 -0.007048          -0.034034       0.006328 -0.033499
+Consumer Defensive           0.001631  0.025090           0.016745      -0.005320  0.016865
+Financial Services          -0.002896  0.000674          -0.002244       0.046875 -0.002242
+Healthcare                  -0.007963  0.006080          -0.019812       0.020177 -0.018834
+Industrials                  0.000901  0.001074          -0.001477      -0.012225 -0.001337
+Real Estate                 -0.017614 -0.000949          -0.026036       0.000472 -0.025546
+Technology                   0.001866  0.000304          -0.004253       0.009520 -0.004162
+Utilities                    0.027156  0.000583           0.000760       0.095383  0.000665
